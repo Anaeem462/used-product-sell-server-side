@@ -11,7 +11,7 @@ const port = process.env.PORT || 5000;
 
 // all middleware
 app.use(cors());
-app.unsubscribe(express.json());
+app.use(express.json());
 
 //verify user with jwt token
 
@@ -35,11 +35,28 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 const secondSellDb = client.db("2nd-Sell");
 const userCollection = secondSellDb.collection("users");
 
-//listener
-app.get("/", (req, res) => {
-    res.send("2nd sell server");
-});
+async function run() {
+    try {
+        app.put("/setUser", async (req, res) => {
+            const user = req.body;
+            const query = { email: req.query.email };
+            const updateDoc = { $set: user };
+            const options = { upsert: true };
+            const result = await userCollection.updateOne(query, updateDoc, options);
+            // send jwt token in cleint side
+            const token = jwt.sign({ email: user.email }, process.env.USER_TOKEN, { expiresIn: "1d" });
+            console.log(user, result, token);
+            res.send({ result, token });
+        });
 
+        //listener
+        app.get("/", (req, res) => {
+            res.send("2nd sell server");
+        });
+    } finally {
+    }
+}
+run().catch((err) => console.log(err));
 app.listen(port, () => {
     client.connect((err) => {
         // console.log(err);
