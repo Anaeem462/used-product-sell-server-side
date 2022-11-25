@@ -4,7 +4,7 @@ const cors = require("cors");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 //function call
 const app = express();
 const port = process.env.PORT || 5000;
@@ -37,7 +37,7 @@ const secondSellDb = client.db("2nd-Sell");
 const userCollection = secondSellDb.collection("users");
 const productsCollection = secondSellDb.collection("products");
 const ordersCollection = secondSellDb.collection("orders");
-
+const paymentsCollection = secondSellDb.collection("payments");
 async function run() {
     try {
         app.put("/setUser", async (req, res) => {
@@ -111,6 +111,34 @@ async function run() {
             res.send(result);
         });
 
+        /// for payment get product data
+        app.get("/products/:id", verifyJwt, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const product = await ordersCollection.findOne(query);
+            res.send(product);
+        });
+
+        app.post("/create-payment-intent", async (req, res) => {
+            const { productPrice } = req.body;
+
+            console.log(productPrice);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: productPrice * 100,
+                currency: "usd",
+                payment_method_types: ["card"],
+            });
+
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        });
+        app.post("/payments", verifyJwt, async (req, res) => {
+            const data = req.body;
+            const result = await paymentsCollection.insertOne(data);
+            console.log(result);
+            res.send(result);
+        });
         //listener
         app.get("/", (req, res) => {
             res.send("2nd sell server");
