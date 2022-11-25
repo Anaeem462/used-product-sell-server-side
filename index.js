@@ -38,8 +38,16 @@ const userCollection = secondSellDb.collection("users");
 const productsCollection = secondSellDb.collection("products");
 const ordersCollection = secondSellDb.collection("orders");
 const paymentsCollection = secondSellDb.collection("payments");
+
 async function run() {
     try {
+        app.get("/adminusers", verifyJwt, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const userData = await userCollection.findOne(query);
+            res.send(userData);
+        });
+
         app.put("/setUser", async (req, res) => {
             const user = req.body;
             const query = { email: req.query.email };
@@ -193,10 +201,11 @@ async function run() {
             const result = await userCollection.deleteOne(query);
             res.send(result);
         });
-        app.put("/use", verifyJwt, async (req, res) => {
+        app.put("/user", verifyJwt, async (req, res) => {
             const id = req.query.id;
+            const doc = req.body;
             const query = { _id: ObjectId(id) };
-            const updateDoc = { $set: { role: "host" } };
+            const updateDoc = { $set: doc };
             const options = { upsert: true };
             const result = await userCollection.updateOne(query, updateDoc, options);
             res.send(result);
