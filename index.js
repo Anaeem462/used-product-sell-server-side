@@ -36,6 +36,7 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 const secondSellDb = client.db("2nd-Sell");
 const userCollection = secondSellDb.collection("users");
 const productsCollection = secondSellDb.collection("products");
+const ordersCollection = secondSellDb.collection("orders");
 
 async function run() {
     try {
@@ -72,7 +73,7 @@ async function run() {
         });
 
         // booked products
-        app.put("/products", verifyJwt, async (req, res) => {
+        app.put("/orders", verifyJwt, async (req, res) => {
             const buyerEmail = req.decoded.email;
             const id = req.query.id;
             const bookedData = req.body;
@@ -83,28 +84,33 @@ async function run() {
                 console.log("user not find in db line79");
                 return res.send({ acknowledged: false, message: "you are not our user" });
             }
-            const queryInProducts = { _id: ObjectId(id) };
-            const idByProducts = await productsCollection.findOne(queryInProducts);
-
-            const queryByBuyersEmail = idByProducts?.buyerEmail === buyerEmail;
-            if (queryByBuyersEmail) {
-                return res.send({ acknowledged: false, message: `you already booking ${idByProducts.name}` });
-            }
-            if (idByProducts?.buyerEmail) {
-                return res.send({ acknowledged: false, message: `${idByProducts.name} Already booked ` });
+            const queryByProduct = { productId: id };
+            const isAlreadyBooked = await ordersCollection.findOne(queryByProduct);
+            if (isAlreadyBooked) {
+                return res.send({ acknowledged: false, message: `${isAlreadyBooked.productName} Already booked ` });
             }
             const updateDoc = { $set: bookedData };
-            const booking = await productsCollection.updateOne(queryInProducts, updateDoc);
+            const options = { upsert: true };
+            const booking = await ordersCollection.updateOne(queryByProduct, updateDoc, options);
             res.send(booking);
         });
         // get booking products
         app.get("/userOrders", verifyJwt, async (req, res) => {
             const email = req.decoded.email;
             const query = { buyerEmail: email };
-            const result = await productsCollection.find(query).toArray();
-            console.log(result);
+            const result = await ordersCollection.find(query).toArray();
+
             res.send(result);
         });
+        app.delete("/products", verifyJwt, async (req, res) => {
+            const email = req.decoded.email;
+            const id = req.query.id;
+            const query = { _id: ObjectId(id) };
+            const result = await ordersCollection.deleteOne(query);
+
+            res.send(result);
+        });
+
         //listener
         app.get("/", (req, res) => {
             res.send("2nd sell server");
