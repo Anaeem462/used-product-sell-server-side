@@ -73,7 +73,18 @@ async function run() {
 
             res.send(products);
         });
-
+        app.get("/myproducts", verifyJwt, async (req, res) => {
+            const email = req.decoded.email;
+            const query = { seller_email: email };
+            const result = await productsCollection.find(query).toArray();
+            res.send(result);
+        });
+        app.delete("/myproducts", verifyJwt, async (req, res) => {
+            const id = req.query.id;
+            const query = { _id: ObjectId(id) };
+            const result = await productsCollection.deleteOne(query);
+            res.send(result);
+        });
         // booked products
         app.put("/orders", verifyJwt, async (req, res) => {
             const buyerEmail = req.decoded.email;
@@ -112,7 +123,19 @@ async function run() {
 
             res.send(result);
         });
-
+        // save products
+        app.post("/products", verifyJwt, async (req, res) => {
+            const email = req.decoded.email;
+            const queryByEmail = { email: email, role: "host" };
+            const isHost = await userCollection.findOne(queryByEmail);
+            if (!isHost) {
+                return res.send({ acknowledged: false, message: "you are not a host" });
+            }
+            const data = req.body;
+            const result = await productsCollection.insertOne(data);
+            console.log(result);
+            res.send(result);
+        });
         /// for payment get product data
         app.get("/products/:id", verifyJwt, async (req, res) => {
             const id = req.params.id;
