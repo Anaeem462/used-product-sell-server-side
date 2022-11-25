@@ -86,38 +86,25 @@ async function run() {
             const queryInProducts = { _id: ObjectId(id) };
             const idByProducts = await productsCollection.findOne(queryInProducts);
 
-            const queryByBuyersEmail = idByProducts?.bookedData?.buyerEmail === buyerEmail;
+            const queryByBuyersEmail = idByProducts?.buyerEmail === buyerEmail;
             if (queryByBuyersEmail) {
                 return res.send({ acknowledged: false, message: `you already booking ${idByProducts.name}` });
             }
-            if (idByProducts?.bookedData) {
+            if (idByProducts?.buyerEmail) {
                 return res.send({ acknowledged: false, message: `${idByProducts.name} Already booked ` });
             }
-            const updateDoc = { $set: { bookedData } };
+            const updateDoc = { $set: bookedData };
             const booking = await productsCollection.updateOne(queryInProducts, updateDoc);
             res.send(booking);
         });
         // get booking products
-        app.get("bookingProducts", verifyJwt, async (req, res) => {
+        app.get("/userOrders", verifyJwt, async (req, res) => {
             const email = req.decoded.email;
-            console.log(email);
-            const query = {
-                bookedData: {
-                    buyerEmail: email,
-                },
-            };
-            g;
-            console.log(query);
-            const isUser = await userCollection.findOne(query);
-            if (!isUser) {
-                console.log("line-112", isUser);
-                return res.send({ acknowledged: false, message: "you are not our user" });
-            }
-            const userBookingData = await productsCollection.find(query);
-            console.log(userBookingData);
-            res.send(userBookingData);
+            const query = { buyerEmail: email };
+            const result = await productsCollection.find(query).toArray();
+            console.log(result);
+            res.send(result);
         });
-
         //listener
         app.get("/", (req, res) => {
             res.send("2nd sell server");
