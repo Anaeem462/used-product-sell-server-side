@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 //function call
 const app = express();
@@ -17,6 +17,7 @@ app.use(express.json());
 
 function verifyJwt(req, res, next) {
     const userTokens = req.headers.authorization;
+
     if (!userTokens) {
         return res.status(401).send("Unauthorized access");
     }
@@ -34,6 +35,7 @@ const uri = process.env.DB_URL;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 const secondSellDb = client.db("2nd-Sell");
 const userCollection = secondSellDb.collection("users");
+const productsCollection = secondSellDb.collection("products");
 
 async function run() {
     try {
@@ -47,6 +49,73 @@ async function run() {
             const token = jwt.sign({ email: user.email }, process.env.USER_TOKEN, { expiresIn: "1d" });
             console.log(user, result, token);
             res.send({ result, token });
+        });
+        // app.get("/users", verifyJwt, async (req, res) => {
+        //     const email = req.decoded.email;
+        //     // const currentEmail = req.query.email;
+        //     const query = { email: email };
+        //     const user = await userCollection.find(query);
+        //     res.send(user);
+
+        //     res.send({ ackwnodege: false, message: "unauthorized" });
+        // });
+        // get product by category
+        app.get("/products", async (req, res) => {
+            const category = req.query.category;
+
+            let query = {};
+            if (category) {
+                query = { category: category };
+            }
+            const result = await productsCollection.find(query).toArray();
+            res.send(result);
+        });
+
+        // booked products
+        app.put("/products", verifyJwt, async (req, res) => {
+            const buyerEmail = req.decoded.email;
+            const id = req.query.id;
+            const bookedData = req.body;
+            const queryInUser = { email: buyerEmail };
+
+            const isUser = await userCollection.findOne(queryInUser);
+            if (!isUser) {
+                console.log("user not find in db line79");
+                return res.send({ acknowledged: false, message: "you are not our user" });
+            }
+            const queryInProducts = { _id: ObjectId(id) };
+            const idByProducts = await productsCollection.findOne(queryInProducts);
+
+            const queryByBuyersEmail = idByProducts?.bookedData?.buyerEmail === buyerEmail;
+            if (queryByBuyersEmail) {
+                return res.send({ acknowledged: false, message: `you already booking ${idByProducts.name}` });
+            }
+            if (idByProducts?.bookedData) {
+                return res.send({ acknowledged: false, message: `${idByProducts.name} Already booked ` });
+            }
+            const updateDoc = { $set: { bookedData } };
+            const booking = await productsCollection.updateOne(queryInProducts, updateDoc);
+            res.send(booking);
+        });
+        // get booking products
+        app.get("bookingProducts", verifyJwt, async (req, res) => {
+            const email = req.decoded.email;
+            console.log(email);
+            const query = {
+                bookedData: {
+                    buyerEmail: email,
+                },
+            };
+            g;
+            console.log(query);
+            const isUser = await userCollection.findOne(query);
+            if (!isUser) {
+                console.log("line-112", isUser);
+                return res.send({ acknowledged: false, message: "you are not our user" });
+            }
+            const userBookingData = await productsCollection.find(query);
+            console.log(userBookingData);
+            res.send(userBookingData);
         });
 
         //listener
