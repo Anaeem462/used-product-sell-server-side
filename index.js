@@ -51,11 +51,16 @@ async function run() {
         app.put("/setUser", async (req, res) => {
             const user = req.body;
             const query = { email: req.query.email };
+            const token = jwt.sign({ email: user.email }, process.env.USER_TOKEN, { expiresIn: "1d" });
+            const isAlreadyUser = await userCollection.findOne(query);
+            if (isAlreadyUser) {
+                return res.send({ result: { acknowledged: false, message: "already in user" }, token });
+            }
             const updateDoc = { $set: user };
             const options = { upsert: true };
             const result = await userCollection.updateOne(query, updateDoc, options);
             // send jwt token in cleint side
-            const token = jwt.sign({ email: user.email }, process.env.USER_TOKEN, { expiresIn: "1d" });
+
             // console.log(user, result, token);
             res.send({ result, token });
         });
@@ -204,6 +209,7 @@ async function run() {
         app.put("/user", verifyJwt, async (req, res) => {
             const id = req.query.id;
             const doc = req.body;
+
             const query = { _id: ObjectId(id) };
             const updateDoc = { $set: doc };
             const options = { upsert: true };
