@@ -48,7 +48,7 @@ async function run() {
             const result = await userCollection.updateOne(query, updateDoc, options);
             // send jwt token in cleint side
             const token = jwt.sign({ email: user.email }, process.env.USER_TOKEN, { expiresIn: "1d" });
-            console.log(user, result, token);
+            // console.log(user, result, token);
             res.send({ result, token });
         });
         // app.get("/users", verifyJwt, async (req, res) => {
@@ -133,7 +133,7 @@ async function run() {
             }
             const data = req.body;
             const result = await productsCollection.insertOne(data);
-            console.log(result);
+
             res.send(result);
         });
         /// for payment get product data
@@ -175,6 +175,31 @@ async function run() {
             const result = await paymentsCollection.updateOne(query, updateDoc, options);
             console.log({ productResult, ordersResult, result });
             res.send({ productResult, ordersResult, result });
+        });
+
+        app.get("/allbuyers", verifyJwt, async (req, res) => {
+            const query = { role: "user" };
+            const result = await userCollection.find(query).toArray();
+            res.send(result);
+        });
+        app.get("/allsellers", verifyJwt, async (req, res) => {
+            const query = { role: "host" };
+            const result = await userCollection.find(query).toArray();
+            res.send(result);
+        });
+        app.delete("/user", verifyJwt, async (req, res) => {
+            const id = req.query.id;
+            const query = { _id: ObjectId(id) };
+            const result = await userCollection.deleteOne(query);
+            res.send(result);
+        });
+        app.put("/use", verifyJwt, async (req, res) => {
+            const id = req.query.id;
+            const query = { _id: ObjectId(id) };
+            const updateDoc = { $set: { role: "host" } };
+            const options = { upsert: true };
+            const result = await userCollection.updateOne(query, updateDoc, options);
+            res.send(result);
         });
         //listener
         app.get("/", (req, res) => {
