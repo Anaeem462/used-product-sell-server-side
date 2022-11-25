@@ -66,10 +66,12 @@ async function run() {
 
             let query = {};
             if (category) {
-                query = { category: category };
+                query = { category: category, payment: { $ne: "paid" } };
             }
-            const result = await productsCollection.find(query).toArray();
-            res.send(result);
+
+            const products = await productsCollection.find(query).toArray();
+
+            res.send(products);
         });
 
         // booked products
@@ -135,9 +137,21 @@ async function run() {
         });
         app.post("/payments", verifyJwt, async (req, res) => {
             const data = req.body;
-            const result = await paymentsCollection.insertOne(data);
-            console.log(result);
-            res.send(result);
+
+            const options = { upsert: true };
+            const productQuery = { _id: ObjectId(data.productId) };
+            const updateProductDoc = { $set: { payment: "paid" } };
+            const productResult = await productsCollection.updateOne(productQuery, updateProductDoc, options);
+
+            const orderQuery = { _id: ObjectId(data.ordersId) };
+            const ordersResult = await ordersCollection.updateOne(orderQuery, updateProductDoc, options);
+
+            const query = { ordersId: data.ordersId, productId: data.productId };
+            const updateDoc = { $set: data };
+
+            const result = await paymentsCollection.updateOne(query, updateDoc, options);
+            console.log({ productResult, ordersResult, result });
+            res.send({ productResult, ordersResult, result });
         });
         //listener
         app.get("/", (req, res) => {
