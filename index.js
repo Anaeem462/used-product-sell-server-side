@@ -33,6 +33,9 @@ function verifyJwt(req, res, next) {
 // mongodb connect
 const uri = process.env.DB_URL;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
+
+//create mongodb database and collections
+
 const secondSellDb = client.db("2nd-Sell");
 const userCollection = secondSellDb.collection("users");
 const productsCollection = secondSellDb.collection("products");
@@ -41,64 +44,75 @@ const paymentsCollection = secondSellDb.collection("payments");
 
 async function run() {
     try {
-        app.get("/adminusers", verifyJwt, async (req, res) => {
+        //----------------------verify admin----------------
+        const verifyAdmin = async (req, res, next) => {
             const decodedEmail = req.decoded.email;
-            const query = { email: decodedEmail };
-            const userData = await userCollection.findOne(query);
-            res.send(userData);
-        });
+            const adminquery = { email: decodedEmail };
 
-        app.put("/setUser", async (req, res) => {
+            const userData = await userCollection.findOne(adminquery);
+            console.log(userData.role);
+            if (userData?.role !== "admin") {
+                return res.send({ message: "You are not an admin" });
+            }
+            next();
+        };
+        //------------------------verify host------------------
+        const verifyHost = async (req, res, next) => {
+            const decodedEmail = req.decoded.email;
+            const hostquery = { email: decodedEmail };
+
+            const userData = await userCollection.findOne(hostquery);
+            console.log(userData.role);
+            if (userData?.role !== "host") {
+                return res.send({ message: "You are not  seller" });
+            }
+            next();
+        };
+
+        //-------------------set user in mongodb--------------------
+
+        app.put("/setuser", async (req, res) => {
             const user = req.body;
             const query = { email: req.query.email };
+            // --------------- set jwt token -------------------
             const token = jwt.sign({ email: user.email }, process.env.USER_TOKEN, { expiresIn: "1d" });
+
+            // ---------------- verify already sign up--------------
             const isAlreadyUser = await userCollection.findOne(query);
             if (isAlreadyUser) {
-                return res.send({ result: { acknowledged: false, message: "already in user" }, token });
+                return res.send({ result: { acknowledged: false, message: "already sign up" }, token });
             }
             const updateDoc = { $set: user };
             const options = { upsert: true };
             const result = await userCollection.updateOne(query, updateDoc, options);
-            // send jwt token in cleint side
 
-            // console.log(user, result, token);
             res.send({ result, token });
         });
-        // app.get("/users", verifyJwt, async (req, res) => {
-        //     const email = req.decoded.email;
-        //     // const currentEmail = req.query.email;
-        //     const query = { email: email };
-        //     const user = await userCollection.find(query);
-        //     res.send(user);
 
-        //     res.send({ ackwnodege: false, message: "unauthorized" });
-        // });
-        // get product by category
+        // --------------------get product by category----------------
+
         app.get("/products", async (req, res) => {
             const category = req.query.category;
 
             let query = {};
+
             if (category) {
-                query = { category: category, payment: { $ne: "paid" } };
+                query = { category: category };
             }
+
+            const isAlreadyOrders = await ordersCollection.find({}).toArray();
+
+            const productName = isAlreadyOrders.map((order) => order.productName);
 
             const products = await productsCollection.find(query).toArray();
 
-            res.send(products);
+            const categoryProducts = products.filter((product) => !productName.includes(product.name));
+
+            res.send(categoryProducts);
         });
-        app.get("/myproducts", verifyJwt, async (req, res) => {
-            const email = req.decoded.email;
-            const query = { seller_email: email };
-            const result = await productsCollection.find(query).toArray();
-            res.send(result);
-        });
-        app.delete("/myproducts", verifyJwt, async (req, res) => {
-            const id = req.query.id;
-            const query = { _id: ObjectId(id) };
-            const result = await productsCollection.deleteOne(query);
-            res.send(result);
-        });
-        // booked products
+
+        // ---------------------booked orders products-----------------------
+
         app.put("/orders", verifyJwt, async (req, res) => {
             const buyerEmail = req.decoded.email;
             const id = req.query.id;
@@ -107,9 +121,9 @@ async function run() {
 
             const isUser = await userCollection.findOne(queryInUser);
             if (!isUser) {
-                console.log("user not find in db line79");
                 return res.send({ acknowledged: false, message: "you are not our user" });
             }
+
             const queryByProduct = { productId: id };
             const isAlreadyBooked = await ordersCollection.findOne(queryByProduct);
             if (isAlreadyBooked) {
@@ -120,15 +134,22 @@ async function run() {
             const booking = await ordersCollection.updateOne(queryByProduct, updateDoc, options);
             res.send(booking);
         });
-        // get booking products
+
+        // ---------------------get booking products by user email-------------------
+
         app.get("/userOrders", verifyJwt, async (req, res) => {
             const email = req.decoded.email;
-            const query = { buyerEmail: email };
-            const result = await ordersCollection.find(query).toArray();
+            const query = {
+                buyerEmail: email,
+            };
 
-            res.send(result);
+            const ordersProducts = await ordersCollection.find(query).toArray();
+
+            res.send(ordersProducts);
         });
-        app.delete("/products", verifyJwt, async (req, res) => {
+
+        // ----------------- delete orders by user-------------------------
+        app.delete("/orders", verifyJwt, async (req, res) => {
             const email = req.decoded.email;
             const id = req.query.id;
             const query = { _id: ObjectId(id) };
@@ -136,20 +157,7 @@ async function run() {
 
             res.send(result);
         });
-        // save products
-        app.post("/products", verifyJwt, async (req, res) => {
-            const email = req.decoded.email;
-            const queryByEmail = { email: email, role: "host" };
-            const isHost = await userCollection.findOne(queryByEmail);
-            if (!isHost) {
-                return res.send({ acknowledged: false, message: "you are not a host" });
-            }
-            const data = req.body;
-            const result = await productsCollection.insertOne(data);
-
-            res.send(result);
-        });
-        /// for payment get product data
+        ///----------------- get product for payment-----------------
         app.get("/products/:id", verifyJwt, async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
@@ -157,10 +165,10 @@ async function run() {
             res.send(product);
         });
 
-        app.post("/create-payment-intent", async (req, res) => {
+        //----------------- stripe payment method and get client secret---------------
+        app.post("/create-payment-intent", verifyJwt, async (req, res) => {
             const { productPrice } = req.body;
 
-            console.log(productPrice);
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: productPrice * 100,
                 currency: "usd",
@@ -171,24 +179,42 @@ async function run() {
                 clientSecret: paymentIntent.client_secret,
             });
         });
+        //------------------add paid products in payments collection------------------
         app.post("/payments", verifyJwt, async (req, res) => {
             const data = req.body;
-
             const options = { upsert: true };
+            // cehck in product
             const productQuery = { _id: ObjectId(data.productId) };
-            const updateProductDoc = { $set: { payment: "paid" } };
-            const productResult = await productsCollection.updateOne(productQuery, updateProductDoc, options);
-
+            const productResult = await productsCollection.findOne(productQuery);
+            if (!productResult) {
+                return res.send({ acknowledged: false, message: "you cant buy it" });
+            }
+            //check in orders
             const orderQuery = { _id: ObjectId(data.ordersId) };
-            const ordersResult = await ordersCollection.updateOne(orderQuery, updateProductDoc, options);
-
+            const setPayement = { $set: { payment: "paid" } };
+            const ordersResult = await ordersCollection.updateOne(orderQuery, setPayement, options);
             const query = { ordersId: data.ordersId, productId: data.productId };
             const updateDoc = { $set: data };
 
             const result = await paymentsCollection.updateOne(query, updateDoc, options);
-            console.log({ productResult, ordersResult, result });
-            res.send({ productResult, ordersResult, result });
+
+            res.send(result);
         });
+
+        //------------------- is host-------------
+        app.get("/hostuser", verifyJwt, verifyHost, async (req, res) => {
+            const email = req.decoded.email;
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            res.send(user);
+        });
+        app.get("/adminuser", verifyJwt, verifyAdmin, async (req, res) => {
+            const email = req.decoded.email;
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            res.send(user);
+        });
+        // --------------host products ---------------
 
         app.get("/allbuyers", verifyJwt, async (req, res) => {
             const query = { role: "user" };
@@ -216,6 +242,34 @@ async function run() {
             const result = await userCollection.updateOne(query, updateDoc, options);
             res.send(result);
         });
+
+        app.get("/myproducts", verifyJwt, async (req, res) => {
+            const email = req.decoded.email;
+            const query = { seller_email: email };
+            const result = await productsCollection.find(query).toArray();
+            res.send(result);
+        });
+        app.delete("/myproducts", verifyJwt, async (req, res) => {
+            const id = req.query.id;
+            const query = { _id: ObjectId(id) };
+            const result = await productsCollection.deleteOne(query);
+            res.send(result);
+        });
+
+        // save products
+        app.post("/products", verifyJwt, async (req, res) => {
+            const email = req.decoded.email;
+            const queryByEmail = { email: email, role: "host" };
+            const isHost = await userCollection.findOne(queryByEmail);
+            if (!isHost) {
+                return res.send({ acknowledged: false, message: "you are not a host" });
+            }
+            const data = req.body;
+            const result = await productsCollection.insertOne(data);
+
+            res.send(result);
+        });
+
         //listener
         app.get("/", (req, res) => {
             res.send("2nd sell server");
