@@ -294,6 +294,7 @@ async function run() {
             const query = { seller_email: email };
             const updateDoc = { $set: data };
             const result = await productsCollection.updateOne(query, updateDoc);
+
             const userQuery = { email: email };
             const userresult = await userCollection.updateOne(userQuery, updateDoc);
 
