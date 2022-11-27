@@ -32,7 +32,7 @@ function verifyJwt(req, res, next) {
 
 // mongodb connect
 const url = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.cu6wtcv.mongodb.net/?retryWrites=true&w=majority`;
-const uri = process.env.DB_URL;
+const uri = process.env.DB_URL || url;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
 //create mongodb database and collections
