@@ -214,7 +214,7 @@ async function run() {
         // ------------------host get products ---------------
         app.get("/myproducts", verifyJwt, verifyHost, async (req, res) => {
             const email = req.decoded.email;
-            console.log(email);
+
             const query = { seller_email: email };
             const result = await productsCollection.find(query).toArray();
             res.send(result);
@@ -274,17 +274,17 @@ async function run() {
             const updateDoc = { $set: userData };
             // const options = { upsert: true };
             const result = await userCollection.updateOne(query, updateDoc);
-            console.log(result);
+
             res.send(result);
         });
 
         // --------------delete user by admib----------------
         app.delete("/deleteuser", verifyJwt, verifyAdmin, async (req, res) => {
             const id = req.query.id;
-            console.log(id);
+
             const query = { _id: ObjectId(id) };
             const result = await userCollection.deleteOne(query);
-            console.log(id, result);
+
             res.send(result);
         });
 
@@ -301,6 +301,17 @@ async function run() {
 
             res.send({ result, userresult });
         });
+
+        //------------------ host buyers-------------------
+        app.get("/mybuyers", verifyJwt, verifyHost, async (req, res) => {
+            const email = req.decoded.email;
+
+            const query = { sellerEmail: email };
+
+            const ordersProduct = await ordersCollection.find(query).toArray();
+            res.send(ordersProduct);
+        });
+
         //listener
         app.get("/", (req, res) => {
             res.send("2nd sell server");
